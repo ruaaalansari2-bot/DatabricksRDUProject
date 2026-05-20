@@ -1,0 +1,45 @@
+name: weekly-acquisition
+
+# The real automation engine. Runs the acquisition layer on a schedule,
+# OUTSIDE Databricks, then uploads to the Databricks volume where Auto Loader
+# picks it up. Free Edition's serverless internet restriction does not apply
+# here because this runs on GitHub's runners.
+
+on:
+  schedule:
+    # Mondays 09:00 UTC (~04:00-05:00 US Eastern), after weekend data settles.
+    - cron: "0 9 * * 1"
+  workflow_dispatch: {}   # allow manual runs from the Actions tab
+
+jobs:
+  acquire-and-upload:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install openpyxl
+
+      - name: Install Databricks CLI
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sh
+          databricks version
+
+      - name: Acquire sources
+        env:
+          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+          CENSUS_API_KEY: ${{ secrets.CENSUS_API_KEY }}
+        run: python acquisition/acquire.py
+
+      - name: Upload to Databricks volume
+        env:
+          DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+          RDU_VOLUME_PATH: ${{ secrets.RDU_VOLUME_PATH }}
+        run: python acquisition/upload.py

@@ -1,0 +1,18 @@
+# Data files — never commit raw datasets
+data_samples/*.csv
+data_samples/*.parquet
+*.pbix.bak
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+
+# OS / editor
+.DS_Store
+.ipynb_checkpoints/
+.vscode/
+
+# Acquisition staging — fetched files, never committed
+acquisition/staging/
