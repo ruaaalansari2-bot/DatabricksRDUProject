@@ -57,9 +57,8 @@ SOURCES = [
         "name": "fhfa_hpi_county",
         "kind": "file",
         "cadence": "quarterly",
-        # Confirm the exact current filename on fhfa.gov before first run.
-        "url": "https://www.fhfa.gov/hpi/download/annually/HPI_AT_BDL_county.csv",
-        "out": "fhfa/hpi_county.csv",
+        "url": "https://www.fhfa.gov/hpi/download/annual/hpi_at_county.xlsx",
+        "out": "fhfa/hpi_county.xlsx",
         "enabled": True,
     },
     {
@@ -76,7 +75,7 @@ SOURCES = [
         "cadence": "weekly",
         # Wake publishes a qualified (arms-length) sales file. If it is xlsx,
         # the fetch step converts it to CSV (see acquire.py convert step).
-        "url": "https://www.wake.gov/documents/RealEstateData/Qualified_Sales.xlsx",
+        "url": "https://services.wake.gov/realdata_extracts/Qualified_Sales_Past_24Months.xlsx",
         "out": "wake/qualified_sales.csv",   # .csv because we convert on fetch
         "convert_xlsx_to_csv": True,
         "enabled": True,
