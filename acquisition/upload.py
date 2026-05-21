@@ -39,7 +39,13 @@ def main():
             continue
         rel = path.relative_to(STAGING).as_posix()
         target = f"{volume.rstrip('/')}/{rel}"
+        target_dir = target.rsplit("/", 1)[0]
         print(f"uploading {rel} -> {target}")
+        # Ensure the destination subfolder exists (cp won't create it).
+        subprocess.run(
+            ["databricks", "fs", "mkdir", target_dir],
+            capture_output=True, text=True,
+        )
         # --overwrite so re-runs replace the prior week's file in place.
         result = subprocess.run(
             ["databricks", "fs", "cp", "--overwrite", str(path), target],
