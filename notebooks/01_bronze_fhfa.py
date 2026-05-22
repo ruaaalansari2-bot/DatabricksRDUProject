@@ -29,8 +29,8 @@ BRONZE_SCHEMA = "bronze"
 # Volume layout mirrors the acquisition staging tree: <volume>/fhfa/...
 VOLUME_BASE   = "/Volumes/workspace/landing/raw"
 SOURCE_DIR    = f"{VOLUME_BASE}/fhfa"
-CHECKPOINT    = f"{VOLUME_BASE}/_checkpoints/fhfa_hpi_county"
-SCHEMA_LOC    = f"{VOLUME_BASE}/_schemas/fhfa_hpi_county"
+CHECKPOINT    = f"{VOLUME_BASE}/_checkpoints/fhfa_hpi_county_v2"
+SCHEMA_LOC    = f"{VOLUME_BASE}/_schemas/fhfa_hpi_county_v2"
 
 RDU_COUNTY_FIPS = ["37183", "37063", "37135", "37101",
                    "37037", "37069", "37077", "37145"]

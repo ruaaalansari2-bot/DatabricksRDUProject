@@ -58,7 +58,19 @@ SOURCES = [
         "kind": "file",
         "cadence": "quarterly",
         "url": "https://www.fhfa.gov/hpi/download/annual/hpi_at_county.xlsx",
-        "out": "fhfa/hpi_county.xlsx",
+        "out": "fhfa/hpi_county.csv",
+        "convert_xlsx_to_csv": True,
+        "xlsx_header_row": 5,   # rows 0-4 are title/disclaimer; row 5 is the real header
+        "xlsx_rename_columns": {
+            "State": "state",
+            "County": "county",
+            "FIPS code": "fips_code",
+            "Year": "year",
+            "Annual Change (%)": "annual_change_pct",
+            "HPI": "hpi",
+            "HPI with 1990 base": "hpi_1990_base",
+            "HPI with 2000 base": "hpi_2000_base",
+        },
         "enabled": True,
     },
     {

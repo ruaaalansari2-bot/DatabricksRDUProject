@@ -72,7 +72,11 @@ def fetch_api(src):
 def fetch_file(src):
     body = _http_get(src["url"], binary=True)
     if src.get("convert_xlsx_to_csv"):
-        body = _xlsx_bytes_to_csv_bytes(body)
+        body = _xlsx_bytes_to_csv_bytes(
+            body,
+            header_row=src.get("xlsx_header_row", 0),
+            rename_columns=src.get("xlsx_rename_columns"),
+        )
     _write(src["out"], body, binary=True)
 
 
@@ -109,17 +113,20 @@ def fetch_arcgis(src):
     _write(src["out"], json.dumps(out))
 
 
-def _xlsx_bytes_to_csv_bytes(xlsx_bytes):
-    """Convert the first sheet of an xlsx to CSV. Uses openpyxl (pure Python,
-    installable via pip — avoids the Maven Spark-Excel reader that Free Edition
-    serverless cannot install)."""
+def _xlsx_bytes_to_csv_bytes(xlsx_bytes, header_row=0, rename_columns=None):
+    """Convert the first sheet of an xlsx to CSV, optionally skipping title rows
+    and renaming columns to Delta-safe names."""
     from openpyxl import load_workbook
     import csv
     wb = load_workbook(io.BytesIO(xlsx_bytes), read_only=True, data_only=True)
     ws = wb.active
     buf = io.StringIO()
     writer = csv.writer(buf)
-    for row in ws.iter_rows(values_only=True):
+    for i, row in enumerate(ws.iter_rows(values_only=True)):
+        if i < header_row:
+            continue
+        if i == header_row and rename_columns:
+            row = tuple(rename_columns.get(str(c), c) if c is not None else "" for c in row)
         writer.writerow(["" if c is None else c for c in row])
     return buf.getvalue().encode("utf-8")
 
