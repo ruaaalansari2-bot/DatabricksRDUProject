@@ -38,6 +38,15 @@ new_data.createOrReplaceTempView("new_metro_data")
 
 # COMMAND ----------
 
+existing_cols = []
+try:
+    existing_cols = [c.name for c in spark.table(TARGET).schema]
+except Exception:
+    pass
+
+if "is_current" not in existing_cols:
+    spark.sql(f"DROP TABLE IF EXISTS {TARGET}")
+
 spark.sql(f"""
 CREATE TABLE IF NOT EXISTS {TARGET} (
     cbsa_code           STRING      NOT NULL,

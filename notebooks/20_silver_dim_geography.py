@@ -69,24 +69,35 @@ new_data.createOrReplaceTempView("new_geo_data")
 
 # COMMAND ----------
 
-# ── Create table on first run ────────────────────────────────────────────────
+# ── Create table (or migrate schema if SCD columns are missing) ───────────────
+# If the table already exists without SCD columns (from a pre-SCD run),
+# drop and recreate — no history to preserve on the first SCD migration.
+existing_cols = []
+try:
+    existing_cols = [c.name for c in spark.table(TARGET).schema]
+except Exception:
+    pass  # table doesn't exist yet
+
+if "is_current" not in existing_cols:
+    spark.sql(f"DROP TABLE IF EXISTS {TARGET}")
+
 spark.sql(f"""
 CREATE TABLE IF NOT EXISTS {TARGET} (
-    county_fips         STRING      NOT NULL,
-    county_name         STRING,
-    cbsa_code           STRING,
-    cbsa_name           STRING,
-    state_fips          STRING,
-    state_name          STRING,
-    csa_name            STRING,
-    redfin_region       STRING,
-    realtor_fips        INT,
-    fhfa_fips           INT,
-    bls_series_id       STRING,
-    effective_start_date DATE       NOT NULL,
-    effective_end_date  DATE,
-    is_current          BOOLEAN     NOT NULL,
-    _updated_at         TIMESTAMP
+    county_fips          STRING      NOT NULL,
+    county_name          STRING,
+    cbsa_code            STRING,
+    cbsa_name            STRING,
+    state_fips           STRING,
+    state_name           STRING,
+    csa_name             STRING,
+    redfin_region        STRING,
+    realtor_fips         INT,
+    fhfa_fips            INT,
+    bls_series_id        STRING,
+    effective_start_date DATE        NOT NULL,
+    effective_end_date   DATE,
+    is_current           BOOLEAN     NOT NULL,
+    _updated_at          TIMESTAMP
 ) USING DELTA
 """)
 
