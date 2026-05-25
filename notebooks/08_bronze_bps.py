@@ -45,7 +45,7 @@ BPS_COLUMNS = [
     "bldgs_1unit_rep", "units_1unit_rep", "value_1unit_rep",
     "bldgs_2unit_rep", "units_2unit_rep", "value_2unit_rep",
     "bldgs_34unit_rep", "units_34unit_rep", "value_34unit_rep",
-    "bldgs_5plus_rep", "units_5plus_rep", "value_5plus_rep",
+    "bldgs_5plus_rep", "units_5plus_rep",   # no value column for 5+ rep
 ]
 
 for i, col_name in enumerate(BPS_COLUMNS):
@@ -59,7 +59,7 @@ UNIT_COLS = [
     "bldgs_1unit_rep", "units_1unit_rep", "value_1unit_rep",
     "bldgs_2unit_rep", "units_2unit_rep", "value_2unit_rep",
     "bldgs_34unit_rep", "units_34unit_rep", "value_34unit_rep",
-    "bldgs_5plus_rep", "units_5plus_rep", "value_5plus_rep",
+    "bldgs_5plus_rep", "units_5plus_rep",
 ]
 
 typed = raw
