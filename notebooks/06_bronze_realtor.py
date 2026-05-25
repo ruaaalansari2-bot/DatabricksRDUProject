@@ -51,8 +51,9 @@ zip_raw = (spark.read
            .option("inferSchema", "true")
            .csv(SOURCE_ZIP))
 
+# zip_name format is "city, st" — extract the 2-letter state suffix to filter NC.
 zip_bronze = (zip_raw
-              .filter(F.col("state_id") == "NC")
+              .filter(F.upper(F.trim(F.split(F.col("zip_name"), ",")[1])) == "NC")
               .withColumn("_ingested_at", F.current_timestamp())
               .withColumn("_source_file", F.lit(SOURCE_ZIP)))
 
