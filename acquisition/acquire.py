@@ -131,10 +131,58 @@ def _xlsx_bytes_to_csv_bytes(xlsx_bytes, header_row=0, rename_columns=None):
     return buf.getvalue().encode("utf-8")
 
 
+def fetch_bps_monthly(src):
+    """Fetch Census Building Permits Survey for the most recent available month.
+    BPS releases ~3-4 weeks after month end; fetch 2 months ago to be safe."""
+    from datetime import date
+    today = date.today()
+    month = today.month - 2
+    year = today.year
+    if month <= 0:
+        month += 12
+        year -= 1
+    yy = str(year)[-2:]
+    mm = f"{month:02d}"
+    filename = f"co{yy}{mm}c.txt"
+    url = src["base_url"] + filename
+    try:
+        body = _http_get(url, binary=True)
+    except Exception:
+        # Fall back one more month if the file isn't published yet.
+        month -= 1
+        if month <= 0:
+            month += 12
+            year -= 1
+        filename = f"co{str(year)[-2:]}{month:02d}c.txt"
+        url = src["base_url"] + filename
+        body = _http_get(url, binary=True)
+    _write(f"{src['out_dir']}/{filename}", body, binary=True)
+
+
+def fetch_bls_laus(src):
+    """Fetch BLS LAUS unemployment rate for multiple county series via v1 API.
+    v1 requires no key (25 calls/day limit; one POST covers all 8 counties)."""
+    import json as _json
+    payload = _json.dumps({"seriesid": src["series_ids"]}).encode("utf-8")
+    req = urllib.request.Request(
+        "https://api.bls.gov/publicAPI/v1/timeseries/data/",
+        data=payload,
+        headers={"User-Agent": USER_AGENT, "Content-Type": "application/json"},
+    )
+    with urllib.request.urlopen(req, timeout=60) as resp:
+        body = resp.read().decode("utf-8")
+    data = _json.loads(body)
+    if data.get("status") != "REQUEST_SUCCEEDED":
+        raise RuntimeError(f"BLS API error: {data.get('message', body[:200])}")
+    _write(src["out"], body)
+
+
 DISPATCH = {
     "api": fetch_api,
     "file": fetch_file,
     "file_gz": fetch_file_gz,
+    "bps_monthly": fetch_bps_monthly,
+    "bls_laus": fetch_bls_laus,
     "arcgis": fetch_arcgis,
 }
 
