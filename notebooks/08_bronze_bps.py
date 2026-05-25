@@ -51,7 +51,22 @@ BPS_COLUMNS = [
 for i, col_name in enumerate(BPS_COLUMNS):
     raw = raw.withColumnRenamed(f"_c{i}", col_name)
 
-bronze = (raw
+UNIT_COLS = [
+    "bldgs_1unit", "units_1unit", "value_1unit",
+    "bldgs_2unit", "units_2unit", "value_2unit",
+    "bldgs_34unit", "units_34unit", "value_34unit",
+    "bldgs_5plus", "units_5plus", "value_5plus",
+    "bldgs_1unit_rep", "units_1unit_rep", "value_1unit_rep",
+    "bldgs_2unit_rep", "units_2unit_rep", "value_2unit_rep",
+    "bldgs_34unit_rep", "units_34unit_rep", "value_34unit_rep",
+    "bldgs_5plus_rep", "units_5plus_rep", "value_5plus_rep",
+]
+
+typed = raw
+for c in UNIT_COLS:
+    typed = typed.withColumn(c, F.col(c).cast("integer"))
+
+bronze = (typed
           .filter(F.col("state_fips").cast("string") == NC_STATE_FIPS)
           .withColumn("fips_code", F.concat(
               F.lpad(F.col("state_fips").cast("string"), 2, "0"),
