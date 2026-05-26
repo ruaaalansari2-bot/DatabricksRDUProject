@@ -36,11 +36,11 @@ zip_qtr = spark.sql(f"""
 SELECT
     CAST(postal_code AS STRING)                              AS zip,
     zip_name,
-    TO_DATE(CONCAT(
-        SUBSTRING(CAST(month_date_yyyymm AS STRING), 1, 4), '-',
-        LPAD(CAST(
-            (CAST(SUBSTRING(CAST(month_date_yyyymm AS STRING), 5, 2) AS INT) - 1)
-            / 3 * 3 + 1 AS STRING), 2, '0'), '-01'))        AS quarter_start,
+    DATE_TRUNC('quarter',
+        TO_DATE(CONCAT(
+            SUBSTRING(CAST(month_date_yyyymm AS STRING), 1, 4), '-',
+            SUBSTRING(CAST(month_date_yyyymm AS STRING), 5, 2), '-01'
+        )))                                                  AS quarter_start,
     AVG(CAST(median_listing_price  AS DOUBLE))               AS median_listing_price,
     AVG(CAST(active_listing_count  AS DOUBLE))               AS active_listing_count,
     AVG(CAST(median_days_on_market AS DOUBLE))               AS median_dom,
