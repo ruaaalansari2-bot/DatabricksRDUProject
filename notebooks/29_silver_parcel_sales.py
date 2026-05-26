@@ -71,9 +71,10 @@ cleaned = (raw
 
 # COMMAND ----------
 
-total   = cleaned.count()
+total    = cleaned.count()
 outliers = cleaned.filter(F.col("is_outlier")).count()
-print(f"Total rows: {total:,}  |  Outliers flagged: {outliers:,}  ({100*outliers/total:.1f}%)")
+pct      = (100 * outliers / total) if total > 0 else 0.0
+print(f"Total rows: {total:,}  |  Outliers flagged: {outliers:,}  ({pct:.1f}%)")
 
 display(
     spark.table(f"{CATALOG}.{SILVER_SCHEMA}.parcel_sales")
