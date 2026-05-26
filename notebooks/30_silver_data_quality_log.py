@@ -9,6 +9,10 @@
 # COMMAND ----------
 
 from pyspark.sql import functions as F
+from pyspark.sql.types import (
+    StructType, StructField,
+    StringType, LongType, DoubleType, TimestampType, BooleanType,
+)
 from datetime import datetime
 
 CATALOG       = "workspace"
@@ -49,13 +53,20 @@ for table, ts_col in SILVER_TABLES.items():
         passed = False
         error_msg = str(e)[:500]
 
-    rows.append((table, row_count, float(null_rate) if null_rate is not None else None,
+    rows.append((table, int(row_count), float(null_rate) if null_rate is not None else None,
                  latest_ts, passed, error_msg, checked_at))
 
 # COMMAND ----------
 
-schema = ["table_name", "row_count", "null_rate_key_col",
-          "latest_data_ts", "passed", "error_msg", "checked_at"]
+schema = StructType([
+    StructField("table_name",       StringType(),    nullable=False),
+    StructField("row_count",        LongType(),      nullable=True),
+    StructField("null_rate_key_col",DoubleType(),    nullable=True),
+    StructField("latest_data_ts",   TimestampType(), nullable=True),
+    StructField("passed",           BooleanType(),   nullable=False),
+    StructField("error_msg",        StringType(),    nullable=True),
+    StructField("checked_at",       TimestampType(), nullable=False),
+])
 
 log_df = spark.createDataFrame(rows, schema)
 
