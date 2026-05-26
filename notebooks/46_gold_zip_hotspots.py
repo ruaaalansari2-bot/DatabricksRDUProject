@@ -1,24 +1,16 @@
 # Databricks notebook source
 # MAGIC %md
-# MAGIC # 46 - Gold: zip_hotspots
+# MAGIC # 46 - Gold: zip_hotspots (SCD Type 2)
 # MAGIC
-# MAGIC **Role:** ZIP-level quarterly market hotspot detection for RDU area.
+# MAGIC **Role:** ZIP-level quarterly hotspot detection for the RDU area.
 # MAGIC Surfaces ZIP codes with outlier price appreciation (>2 std dev from mean).
 # MAGIC
-# MAGIC **Source:** bronze.realtor_inventory_zip (monthly → aggregated to quarter)
+# MAGIC **SCD Type 2:** natural key (zip, quarter_start).
+# MAGIC Revision triggers: Realtor.com republishes or corrects historical zip data.
+# MAGIC Note: appreciation_rank and anomaly_flag shift whenever new quarterly data
+# MAGIC arrives (same dynamic as market_health_score PERCENT_RANK).
 # MAGIC
-# MAGIC **Columns:**
-# MAGIC - zip, zip_name, quarter_start
-# MAGIC - median_listing_price, active_listing_count, median_dom
-# MAGIC - qoq_price_change_pct — quarter-over-quarter listing price change %
-# MAGIC - appreciation_rank — rank within quarter (1 = highest appreciation)
-# MAGIC - anomaly_flag — true when |qoq| > 2 standard deviations from quarterly mean
-# MAGIC
-# MAGIC **Note on county mapping:**
-# MAGIC County attribution (county_fips) requires silver.xwalk_zip_county (HUD ZIP
-# MAGIC crosswalk). Until that table is built, county_fips is derived from a
-# MAGIC hardcoded RDU ZIP list from dim_geography. Non-RDU NC ZIPs are included
-# MAGIC but will have NULL county_fips.
+# MAGIC **county_fips:** NULL until silver.xwalk_zip_county (HUD crosswalk) is built.
 
 # COMMAND ----------
 
@@ -26,100 +18,163 @@ from pyspark.sql import functions as F, Window
 
 CATALOG = "workspace"
 GOLD    = f"{CATALOG}.gold"
-SILVER  = f"{CATALOG}.silver"
 BRONZE  = f"{CATALOG}.bronze"
 TARGET  = f"{GOLD}.zip_hotspots"
 
+METRIC_COLS = [
+    "zip_name", "county_fips",
+    "median_listing_price", "active_listing_count", "median_dom",
+    "new_listing_count", "price_reduced_count",
+    "qoq_price_change_pct", "appreciation_rank", "anomaly_flag",
+]
+
 # COMMAND ----------
 
-# Aggregate monthly ZIP data to quarterly
-zip_quarterly = spark.sql(f"""
-WITH monthly AS (
-    SELECT
-        CAST(postal_code AS STRING)                          AS zip,
-        zip_name,
-        -- month_date_yyyymm is an int like 202401; convert to quarter start date
-        TO_DATE(
-            CONCAT(SUBSTRING(CAST(month_date_yyyymm AS STRING), 1, 4), '-',
-                   LPAD(
-                       CAST((CAST(SUBSTRING(CAST(month_date_yyyymm AS STRING), 5, 2) AS INT) - 1) / 3 * 3 + 1 AS STRING),
-                   2, '0'), '-01')
-        )                                                    AS quarter_start,
-        AVG(CAST(median_listing_price             AS DOUBLE)) AS median_listing_price,
-        AVG(CAST(active_listing_count             AS DOUBLE)) AS active_listing_count,
-        AVG(CAST(median_days_on_market            AS DOUBLE)) AS median_dom,
-        AVG(CAST(new_listing_count                AS DOUBLE)) AS new_listing_count,
-        AVG(CAST(price_reduced_count              AS DOUBLE)) AS price_reduced_count
-    FROM {BRONZE}.realtor_inventory_zip
-    WHERE postal_code IS NOT NULL
-      AND month_date_yyyymm IS NOT NULL
-    GROUP BY postal_code, zip_name, quarter_start
-)
+# ── Compute incoming data ─────────────────────────────────────────────────────
+# Monthly → quarterly aggregation
+zip_qtr = spark.sql(f"""
 SELECT
-    zip,
+    CAST(postal_code AS STRING)                              AS zip,
     zip_name,
-    quarter_start,
-    ROUND(median_listing_price,  0) AS median_listing_price,
-    CAST(active_listing_count AS BIGINT) AS active_listing_count,
-    ROUND(median_dom,            1) AS median_dom,
-    CAST(new_listing_count    AS BIGINT) AS new_listing_count,
-    CAST(price_reduced_count  AS BIGINT) AS price_reduced_count
-FROM monthly
+    TO_DATE(CONCAT(
+        SUBSTRING(CAST(month_date_yyyymm AS STRING), 1, 4), '-',
+        LPAD(CAST(
+            (CAST(SUBSTRING(CAST(month_date_yyyymm AS STRING), 5, 2) AS INT) - 1)
+            / 3 * 3 + 1 AS STRING), 2, '0'), '-01'))        AS quarter_start,
+    AVG(CAST(median_listing_price  AS DOUBLE))               AS median_listing_price,
+    AVG(CAST(active_listing_count  AS DOUBLE))               AS active_listing_count,
+    AVG(CAST(median_days_on_market AS DOUBLE))               AS median_dom,
+    AVG(CAST(new_listing_count     AS DOUBLE))               AS new_listing_count,
+    AVG(CAST(price_reduced_count   AS DOUBLE))               AS price_reduced_count
+FROM {BRONZE}.realtor_inventory_zip
+WHERE postal_code IS NOT NULL
+  AND month_date_yyyymm IS NOT NULL
+GROUP BY postal_code, zip_name, quarter_start
 """)
-
-# COMMAND ----------
 
 # Quarter-over-quarter price change per ZIP
 w_zip = Window.partitionBy("zip").orderBy("quarter_start")
 
-zip_with_qoq = (zip_quarterly
-    .withColumn("prev_price",
-        F.lag("median_listing_price", 1).over(w_zip))
+zip_qoq = (zip_qtr
+    .withColumn("prev_price", F.lag("median_listing_price", 1).over(w_zip))
     .withColumn("qoq_price_change_pct",
         F.round(
             (F.col("median_listing_price") - F.col("prev_price"))
             / F.col("prev_price") * 100, 2))
-    .drop("prev_price"))
+    .drop("prev_price")
+    .withColumn("median_listing_price",  F.round("median_listing_price",  0))
+    .withColumn("active_listing_count",  F.col("active_listing_count").cast("long"))
+    .withColumn("median_dom",            F.round("median_dom",            1))
+    .withColumn("new_listing_count",     F.col("new_listing_count").cast("long"))
+    .withColumn("price_reduced_count",   F.col("price_reduced_count").cast("long")))
 
-# COMMAND ----------
-
-# Anomaly flag: |qoq| > 2 std deviations from the mean within the same quarter
+# Anomaly flag: |qoq| > 2 std deviations from that quarter's mean
 w_qtr = Window.partitionBy("quarter_start")
 
-zip_scored = (zip_with_qoq
-    .withColumn("qtr_mean_qoq",  F.avg("qoq_price_change_pct").over(w_qtr))
-    .withColumn("qtr_stddev_qoq", F.stddev("qoq_price_change_pct").over(w_qtr))
+new_data = (zip_qoq
+    .withColumn("qtr_mean",   F.avg("qoq_price_change_pct").over(w_qtr))
+    .withColumn("qtr_stddev", F.stddev("qoq_price_change_pct").over(w_qtr))
     .withColumn("anomaly_flag",
         F.when(
-            F.col("qtr_stddev_qoq") > 0,
-            F.abs(F.col("qoq_price_change_pct") - F.col("qtr_mean_qoq"))
-            > 2 * F.col("qtr_stddev_qoq")
+            F.col("qtr_stddev") > 0,
+            F.abs(F.col("qoq_price_change_pct") - F.col("qtr_mean"))
+            > 2 * F.col("qtr_stddev")
         ).otherwise(F.lit(False)))
     .withColumn("appreciation_rank",
         F.rank().over(
             Window.partitionBy("quarter_start")
                   .orderBy(F.col("qoq_price_change_pct").desc())))
-    .drop("qtr_mean_qoq", "qtr_stddev_qoq"))
+    .withColumn("county_fips", F.lit(None).cast("string"))
+    .drop("qtr_mean", "qtr_stddev"))
+
+new_data = new_data.withColumn("_row_hash",
+    F.md5(F.concat_ws("|", *[
+        F.coalesce(F.col(c).cast("string"), F.lit("")) for c in METRIC_COLS
+    ])))
+
+new_data.createOrReplaceTempView("new_zip")
 
 # COMMAND ----------
 
-# Optional: join county_fips from dim_geography redfin_region when xwalk not yet available.
-# For now, add county_fips as NULL — populate once silver.xwalk_zip_county is built.
-hotspots = zip_scored.withColumn("county_fips", F.lit(None).cast("string"))
+# ── Migration guard + CREATE TABLE ────────────────────────────────────────────
+existing_cols = []
+try:
+    existing_cols = [c.name for c in spark.table(TARGET).schema]
+except Exception:
+    pass
+if "is_current" not in existing_cols:
+    spark.sql(f"DROP TABLE IF EXISTS {TARGET}")
+
+spark.sql(f"""
+CREATE TABLE IF NOT EXISTS {TARGET} (
+    zip                   STRING  NOT NULL,
+    quarter_start         DATE    NOT NULL,
+    zip_name              STRING,
+    county_fips           STRING,
+    median_listing_price  DOUBLE,
+    active_listing_count  BIGINT,
+    median_dom            DOUBLE,
+    new_listing_count     BIGINT,
+    price_reduced_count   BIGINT,
+    qoq_price_change_pct  DOUBLE,
+    appreciation_rank     INT,
+    anomaly_flag          BOOLEAN,
+    _row_hash             STRING,
+    effective_start_date  DATE    NOT NULL,
+    effective_end_date    DATE,
+    is_current            BOOLEAN NOT NULL,
+    _updated_at           TIMESTAMP
+) USING DELTA
+""")
 
 # COMMAND ----------
 
-(hotspots
- .withColumn("_updated_at", F.current_timestamp())
- .write.format("delta").mode("overwrite").option("overwriteSchema", "true")
- .saveAsTable(TARGET))
+# ── Pass 1: Close changed rows ────────────────────────────────────────────────
+spark.sql(f"""
+MERGE INTO {TARGET} AS t
+USING new_zip AS s
+  ON  t.zip           = s.zip
+ AND  t.quarter_start = s.quarter_start
+ AND  t.is_current    = true
+WHEN MATCHED AND t._row_hash != s._row_hash
+THEN UPDATE SET
+    t.effective_end_date = current_date(),
+    t.is_current         = false,
+    t._updated_at        = current_timestamp()
+""")
 
-total    = spark.table(TARGET).count()
-anomalies = spark.table(TARGET).filter(F.col("anomaly_flag")).count()
-print(f"Rows written: {total:,}  |  Anomaly-flagged ZIP-quarters: {anomalies:,}")
+# COMMAND ----------
+
+# ── Pass 2: Insert new versions ───────────────────────────────────────────────
+metric_select = ",\n    ".join([f"s.{c}" for c in METRIC_COLS])
+spark.sql(f"""
+INSERT INTO {TARGET}
+SELECT
+    s.zip,
+    s.quarter_start,
+    {metric_select},
+    s._row_hash,
+    current_date()      AS effective_start_date,
+    NULL                AS effective_end_date,
+    true                AS is_current,
+    current_timestamp() AS _updated_at
+FROM new_zip s
+LEFT JOIN {TARGET} t
+       ON t.zip           = s.zip
+      AND t.quarter_start = s.quarter_start
+      AND t.is_current    = true
+WHERE t.zip IS NULL
+""")
+
+# COMMAND ----------
+
+total     = spark.sql(f"SELECT COUNT(*) FROM {TARGET}").collect()[0][0]
+current   = spark.sql(f"SELECT COUNT(*) FROM {TARGET} WHERE is_current = true").collect()[0][0]
+anomalies = spark.sql(f"SELECT COUNT(*) FROM {TARGET} WHERE is_current = true AND anomaly_flag = true").collect()[0][0]
+print(f"Total rows: {total:,}  |  Current: {current:,}  |  Historical: {total - current:,}  |  Anomalies: {anomalies:,}")
 
 display(
     spark.table(TARGET)
-    .filter(F.col("anomaly_flag"))
+    .filter("is_current = true AND anomaly_flag = true")
     .orderBy(F.col("quarter_start").desc(), "appreciation_rank")
     .limit(20))
