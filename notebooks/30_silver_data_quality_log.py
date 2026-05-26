@@ -38,7 +38,7 @@ for table, ts_col in SILVER_TABLES.items():
     try:
         df = spark.table(full_name)
         row_count = df.count()
-        latest_ts = df.agg(F.max(ts_col)).collect()[0][0]
+        latest_ts = df.agg(F.max(F.col(ts_col).cast("timestamp"))).collect()[0][0]
         # Null rate on first non-metadata column (index 0).
         data_cols = [c for c in df.columns if not c.startswith("_")]
         null_rate = (df.filter(F.col(data_cols[0]).isNull()).count() / max(row_count, 1))
