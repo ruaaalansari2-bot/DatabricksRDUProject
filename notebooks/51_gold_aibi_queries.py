@@ -89,7 +89,7 @@
 # MAGIC JOIN workspace.silver.dim_geography d
 # MAGIC      ON d.county_fips = m.county_fips AND d.is_current = true
 # MAGIC WHERE m.is_current = true
-# MAGIC   AND m.date_key >= '2018-01-01'
+# MAGIC   AND m.date_key >= '2023-01-01'
 # MAGIC ORDER BY d.county_name, m.date_key
 
 # COMMAND ----------
@@ -120,7 +120,7 @@
 # MAGIC JOIN workspace.silver.dim_geography d
 # MAGIC      ON d.county_fips = a.county_fips AND d.is_current = true
 # MAGIC WHERE a.is_current = true
-# MAGIC   AND a.date_key >= '2018-01-01'
+# MAGIC   AND a.date_key >= '2023-01-01'
 # MAGIC ORDER BY d.county_name, a.date_key
 
 # COMMAND ----------
@@ -319,7 +319,7 @@
 # MAGIC JOIN workspace.silver.dim_geography d
 # MAGIC      ON d.county_fips = s.county_fips AND d.is_current = true
 # MAGIC WHERE s.is_current = true
-# MAGIC   AND s.date_key >= '2018-01-01'
+# MAGIC   AND s.date_key >= '2023-01-01'
 # MAGIC   AND s.county_unemployment_rate IS NOT NULL
 # MAGIC ORDER BY d.county_name, s.date_key
 
