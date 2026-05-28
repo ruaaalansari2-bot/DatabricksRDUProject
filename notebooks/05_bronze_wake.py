@@ -62,12 +62,18 @@ display(raw.limit(10))
 # COMMAND ----------
 
 COLUMN_MAP = {
-    # our_name        : "Exact Wake column name from STEP 1"
-    "parcel_id":        "PIN_NUM",        # <-- adjust
-    "sale_price":       "TOTSALPRICE",    # <-- adjust
-    "sale_date":        "SALEDATE",       # <-- adjust
-    "address":          "SITE_ADDRESS",   # <-- adjust (or None)
-    "heated_area":      "HEATEDAREA",     # <-- adjust (or None, for $/sqft)
+    # our_name          : "Exact Wake column name"
+    "parcel_id":          "PIN_NUM",
+    "sale_price":         "SALE_PRICE",
+    "sale_date":          "SALE_DATE",
+    "heated_area":        "TOTAL_HEATED_AREA_ATSALE",
+    "assessed_value":     "PARCEL_ASSD_VALUE_ATSALE",   # now available!
+    "land_assessed_value":"LAND_ASSD_VALUE_ATSALE",
+    "sale_type":          "SALE_TYPE",
+    "year_built":         "YEAR_BUILT",
+    "bldg_use":           "BLDG_USE_DESC",
+    "zoning":             "ZONING",
+    "zip":                "ZIP",
 }
 
 # COMMAND ----------
@@ -85,21 +91,38 @@ for our_name, wake_name in COLUMN_MAP.items():
     if wake_name is not None and wake_name in raw.columns:
         select_exprs.append(F.col(wake_name).alias(our_name))
     else:
-        # Keep the column present but null if not found, so downstream code
-        # has a stable schema regardless of file variations.
         select_exprs.append(F.lit(None).cast("string").alias(our_name))
+
+# Build address by concatenating street components from raw (not in COLUMN_MAP)
+select_exprs.append(
+    F.concat_ws(" ",
+        F.col("STREET_NUM").cast("string"),
+        F.col("DIRECTIONAL_PREFIX"),
+        F.col("STREET_NAME"),
+        F.col("STREET_TYPE"),
+        F.col("DIRECTIONAL_SUFFIX"),
+    ).alias("address")
+)
 
 bronze = raw.select(*select_exprs)
 
-# Light typing. Sale price often has $ and commas if it came through as text.
+# Light typing. Sale price sometimes has $ or commas when passed through text.
 bronze = (bronze
           .withColumn("sale_price",
                       F.regexp_replace(F.col("sale_price").cast("string"),
                                        "[^0-9.]", "").cast("double"))
-          .withColumn("sale_date", F.to_date(F.col("sale_date")))
-          .withColumn("county_fips", F.lit("37183"))
-          .withColumn("_ingested_at", F.current_timestamp())
-          .withColumn("_source_file", F.lit(SOURCE_FILE)))
+          .withColumn("assessed_value",
+                      F.regexp_replace(F.col("assessed_value").cast("string"),
+                                       "[^0-9.]", "").cast("double"))
+          .withColumn("land_assessed_value",
+                      F.regexp_replace(F.col("land_assessed_value").cast("string"),
+                                       "[^0-9.]", "").cast("double"))
+          .withColumn("heated_area",   F.col("heated_area").cast("double"))
+          .withColumn("year_built",    F.col("year_built").cast("integer"))
+          .withColumn("sale_date",     F.to_date(F.col("sale_date")))
+          .withColumn("county_fips",   F.lit("37183"))
+          .withColumn("_ingested_at",  F.current_timestamp())
+          .withColumn("_source_file",  F.lit(SOURCE_FILE)))
 
 (bronze.write
  .format("delta")

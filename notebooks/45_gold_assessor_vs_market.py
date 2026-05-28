@@ -23,9 +23,10 @@ SILVER  = f"{CATALOG}.silver"
 TARGET  = f"{GOLD}.assessor_vs_market"
 
 METRIC_COLS = [
-    "parcel_sale_count", "parcel_median_price", "parcel_median_ppsf", "outlier_count",
+    "parcel_sale_count", "parcel_median_price", "parcel_median_ppsf",
+    "parcel_median_assessed", "median_assessed_vs_sale_gap", "outlier_count",
     "market_median_price", "hpi_index",
-    "parcel_vs_market_gap", "parcel_vs_market_gap_pct", "assessed_vs_sale_gap",
+    "parcel_vs_market_gap", "parcel_vs_market_gap_pct",
 ]
 
 # COMMAND ----------
@@ -36,10 +37,12 @@ WITH parcel_agg AS (
     SELECT
         county_fips,
         DATE_TRUNC('month', CAST(sale_date AS DATE))          AS date_key,
-        COUNT(*)                                              AS parcel_sale_count,
-        ROUND(PERCENTILE_APPROX(sale_price,     0.5), 0)     AS parcel_median_price,
-        ROUND(PERCENTILE_APPROX(price_per_sqft, 0.5), 2)     AS parcel_median_ppsf,
-        SUM(CASE WHEN is_outlier THEN 1 ELSE 0 END)          AS outlier_count
+        COUNT(*)                                                   AS parcel_sale_count,
+        ROUND(PERCENTILE_APPROX(sale_price,           0.5), 0)    AS parcel_median_price,
+        ROUND(PERCENTILE_APPROX(price_per_sqft,       0.5), 2)    AS parcel_median_ppsf,
+        ROUND(PERCENTILE_APPROX(assessed_value,       0.5), 0)    AS parcel_median_assessed,
+        ROUND(PERCENTILE_APPROX(assessed_vs_sale_gap, 0.5), 0)    AS median_assessed_vs_sale_gap,
+        SUM(CASE WHEN is_outlier THEN 1 ELSE 0 END)               AS outlier_count
     FROM {SILVER}.parcel_sales
     WHERE NOT is_outlier AND sale_price > 0
     GROUP BY county_fips, DATE_TRUNC('month', CAST(sale_date AS DATE))
@@ -62,6 +65,8 @@ SELECT
     p.parcel_sale_count,
     p.parcel_median_price,
     p.parcel_median_ppsf,
+    p.parcel_median_assessed,
+    p.median_assessed_vs_sale_gap,
     p.outlier_count,
     m.market_median_price,
     m.hpi_index,
@@ -70,8 +75,7 @@ SELECT
         ROUND(
             (p.parcel_median_price - m.market_median_price)
             / m.market_median_price * 100, 2)
-    END                                                      AS parcel_vs_market_gap_pct,
-    CAST(NULL AS DOUBLE)                                     AS assessed_vs_sale_gap
+    END                                                      AS parcel_vs_market_gap_pct
 FROM market m
 LEFT JOIN parcel_agg p USING (county_fips, date_key)
 """)
@@ -98,15 +102,16 @@ spark.sql(f"""
 CREATE TABLE IF NOT EXISTS {TARGET} (
     county_fips               STRING  NOT NULL,
     date_key                  DATE    NOT NULL,
-    parcel_sale_count         BIGINT,
-    parcel_median_price       DOUBLE,
-    parcel_median_ppsf        DOUBLE,
-    outlier_count             BIGINT,
-    market_median_price       DOUBLE,
-    hpi_index                 DOUBLE,
-    parcel_vs_market_gap      DOUBLE,
-    parcel_vs_market_gap_pct  DOUBLE,
-    assessed_vs_sale_gap      DOUBLE,
+    parcel_sale_count            BIGINT,
+    parcel_median_price          DOUBLE,
+    parcel_median_ppsf           DOUBLE,
+    parcel_median_assessed       DOUBLE,
+    median_assessed_vs_sale_gap  DOUBLE,
+    outlier_count                BIGINT,
+    market_median_price          DOUBLE,
+    hpi_index                    DOUBLE,
+    parcel_vs_market_gap         DOUBLE,
+    parcel_vs_market_gap_pct     DOUBLE,
     _row_hash                 STRING,
     effective_start_date      DATE    NOT NULL,
     effective_end_date        DATE,

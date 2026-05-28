@@ -47,17 +47,26 @@ cleaned = (raw
                        (F.col("sale_price") <= PRICE_MIN) |
                        (F.col("sale_price") > PRICE_MAX) |
                        (F.col("price_per_sqft") > PPSF_MAX))
-           .withColumn("assessed_value", F.lit(None).cast("double"))  # not in source file
+           .withColumn("assessed_vs_sale_gap",
+                       F.when(
+                           F.col("assessed_value").isNotNull() & (F.col("sale_price") > 0),
+                           F.round(F.col("assessed_value") - F.col("sale_price"), 2)
+                       ).otherwise(None))
            .withColumn("_ingested_at", F.current_timestamp())
            .select(
                F.col("parcel_id").cast("string"),
                "county_fips",
                "sale_date",
                "sale_price",
-               "assessed_value",
+               F.col("assessed_value").cast("double"),
+               "assessed_vs_sale_gap",
                "heated_area_sqft",
                "price_per_sqft",
                "address",
+               F.col("sale_type").cast("string"),
+               F.col("year_built").cast("integer"),
+               F.col("bldg_use").cast("string"),
+               F.col("zip").cast("string"),
                "is_outlier",
                "_ingested_at"))
 
