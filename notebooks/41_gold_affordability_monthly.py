@@ -31,26 +31,33 @@ METRIC_COLS = [
 
 # ── Compute incoming data ─────────────────────────────────────────────────────
 new_data = spark.sql(f"""
-WITH base AS (
+WITH income_ranges AS (
+    SELECT
+        county_fips,
+        acs_year                                                              AS from_year,
+        COALESCE(
+            LEAD(acs_year) OVER (PARTITION BY county_fips ORDER BY acs_year),
+            9999
+        )                                                                     AS to_year,
+        median_household_income
+    FROM {SILVER}.demographics
+),
+base AS (
     SELECT
         m.county_fips,
         m.date_key,
         m.median_sale_price,
         r.value                   AS mortgage_rate,
-        d.median_household_income AS median_income
+        ir.median_household_income AS median_income
     FROM {GOLD}.county_market_monthly m
     LEFT JOIN {SILVER}.economic_indicators r
            ON r.date_key        = m.date_key
           AND r.indicator       = 'mortgage_30yr'
           AND r.geography_scope = 'national'
-    LEFT JOIN {SILVER}.demographics d
-           ON d.county_fips = m.county_fips
-          AND d.acs_year    = (
-              SELECT MAX(d2.acs_year)
-              FROM {SILVER}.demographics d2
-              WHERE d2.county_fips = m.county_fips
-                AND d2.acs_year   <= YEAR(m.date_key)
-          )
+    LEFT JOIN income_ranges ir
+           ON ir.county_fips        = m.county_fips
+          AND YEAR(m.date_key) >= ir.from_year
+          AND YEAR(m.date_key) <  ir.to_year
     WHERE m.median_sale_price IS NOT NULL
       AND m.is_current = true
 ),
