@@ -95,7 +95,7 @@ try:
     existing_cols = [c.name for c in spark.table(TARGET).schema]
 except Exception:
     pass
-if "is_current" not in existing_cols:
+if "is_current" not in existing_cols or "parcel_median_assessed" not in existing_cols:
     spark.sql(f"DROP TABLE IF EXISTS {TARGET}")
 
 spark.sql(f"""
