@@ -12,9 +12,12 @@
 # MAGIC - Flag is_outlier = true where sale_price <= 0, sale_price > 10M,
 # MAGIC   or price_per_sqft > 2000 (implausible for residential Wake County).
 # MAGIC
-# MAGIC **Note:** assessed_value is NOT present in the Wake qualified sales file.
-# MAGIC The assessor_vs_market gold mart will need the separate Wake property file
-# MAGIC added as a bronze source before that column can be populated.
+# MAGIC **Sources:**
+# MAGIC - bronze.wake_qualified_sales  (Wake County, FIPS 37183)
+# MAGIC - bronze.nc_parcel_sales       (Durham, Orange, Johnston, Chatham, Franklin,
+# MAGIC                                 Granville, Person — from NC OneMap)
+# MAGIC   nc_parcel_sales is LEFT UNIONED: if the table doesn't exist yet the
+# MAGIC   notebook still runs with Wake data only.
 
 # COMMAND ----------
 
@@ -30,7 +33,20 @@ PPSF_MAX      =     2_000
 
 # COMMAND ----------
 
-raw = spark.table(f"{CATALOG}.{BRONZE_SCHEMA}.wake_qualified_sales")
+# ── Load and union sources ────────────────────────────────────────────────────
+wake_raw = spark.table(f"{CATALOG}.{BRONZE_SCHEMA}.wake_qualified_sales")
+
+# nc_parcel_sales is optional — only present after notebook 06 has run
+try:
+    nc_raw = spark.table(f"{CATALOG}.{BRONZE_SCHEMA}.nc_parcel_sales")
+    # Add a sale_type stub so schemas align (NC OneMap may not have it)
+    if "sale_type" not in nc_raw.columns:
+        nc_raw = nc_raw.withColumn("sale_type", F.lit(None).cast("string"))
+    raw = wake_raw.unionByName(nc_raw, allowMissingColumns=True)
+    print("Unioning Wake + NC OneMap parcel sources")
+except Exception:
+    raw = wake_raw
+    print("nc_parcel_sales not found — running Wake-only")
 
 cleaned = (raw
            .dropDuplicates(["parcel_id", "sale_date", "sale_price"])

@@ -249,14 +249,35 @@ SOURCES = [
     },
 
     # ------------------------------------------------------------------ #
-    # Durham Parcels — ArcGIS (disabled until live URL confirmed)         #
+    # NC OneMap — Statewide Parcels (non-Wake RDU counties)               #
+    #                                                                      #
+    # Source: NC Integrated Cadastral Data Exchange, hosted by NCCGIA.    #
+    # Covers Durham (37063), Orange (37135), Johnston (37101),             #
+    # Chatham (37037), Franklin (37069), Granville (37077), Person (37145)#
+    #                                                                      #
+    # STEP 1 — Run 06_bronze_nc_parcels.py inspection cell to confirm     #
+    # field names, then update `where` and `out_fields` below.            #
+    # STEP 2 — Set enabled: True once field names are confirmed.          #
     # ------------------------------------------------------------------ #
     {
-        "name": "durham_parcels",
+        "name": "nc_parcels_rdu",
         "kind": "arcgis",
         "cadence": "monthly",
-        "url": "https://services.arcgis.com/DURHAM_ORG_ID/arcgis/rest/services/Parcels/FeatureServer/0/query",
-        "out": "durham/parcels.geojson",
-        "enabled": False,
+        "url": "https://services.nconemap.gov/secure/rest/services/NC1Map_Parcels/FeatureServer/0/query",
+        # Filter to non-Wake RDU counties with a sale price on record.
+        # Field names to verify in Databricks inspection cell:
+        #   FIPS (or CNTYCODE), SALEPRICE, SALEDATE
+        "where": (
+            "FIPS IN ('37063','37135','37101','37037','37069','37077','37145')"
+            " AND SALEPRICE > 0"
+            " AND SALEDATE >= DATE '2022-01-01'"
+        ),
+        "out_fields": (
+            "FIPS,PARCELPK,REID,SITEADDR,SITECITY,SITEZIP,"
+            "SALEPRICE,SALEDATE,TOTVAL,LANDVAL,BLDGVAL,"
+            "HEATAREA,BLDGUSE,YEARBUILT,OWNER"
+        ),
+        "out": "nc_parcels/rdu_non_wake.geojson",
+        "enabled": False,   # enable after confirming field names in Step 1
     },
 ]

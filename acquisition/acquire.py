@@ -89,13 +89,17 @@ def fetch_file_gz(src):
 
 def fetch_arcgis(src):
     """Paginated ArcGIS FeatureServer query. ArcGIS caps records per request
-    (commonly 1000-2000), so page with resultOffset until exhausted."""
+    (commonly 1000-2000), so page with resultOffset until exhausted.
+    Optional source keys:
+      where      - SQL WHERE clause (default '1=1')
+      out_fields - comma-separated field list (default '*')
+    """
     all_features = []
     offset, page = 0, 2000
     while True:
         params = {
-            "where": "1=1",
-            "outFields": "*",
+            "where":             src.get("where", "1=1"),
+            "outFields":         src.get("out_fields", "*"),
             "f": "geojson",
             "resultOffset": offset,
             "resultRecordCount": page,
