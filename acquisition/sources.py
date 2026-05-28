@@ -264,20 +264,21 @@ SOURCES = [
         "kind": "arcgis",
         "cadence": "monthly",
         "url": "https://services.nconemap.gov/secure/rest/services/NC1Map_Parcels/FeatureServer/0/query",
-        # Filter to non-Wake RDU counties with a sale price on record.
-        # Field names to verify in Databricks inspection cell:
-        #   FIPS (or CNTYCODE), SALEPRICE, SALEDATE
+        # NOTE: NC OneMap has NO sale price field — only assessed values.
+        # parval = total assessed, landval = land, improvval = improvement.
+        # saledate = last recorded sale date (parcel snapshot, not sales file).
+        # Useful for parcel_median_assessed across non-Wake counties.
         "where": (
-            "FIPS IN ('37063','37135','37101','37037','37069','37077','37145')"
-            " AND SALEPRICE > 0"
-            " AND SALEDATE >= DATE '2022-01-01'"
+            "stcntyfips IN ('37063','37135','37101','37037','37069','37077','37145')"
+            " AND saledate >= DATE '2022-01-01'"
+            " AND parval > 0"
         ),
         "out_fields": (
-            "FIPS,PARCELPK,REID,SITEADDR,SITECITY,SITEZIP,"
-            "SALEPRICE,SALEDATE,TOTVAL,LANDVAL,BLDGVAL,"
-            "HEATAREA,BLDGUSE,YEARBUILT,OWNER"
+            "stcntyfips,parno,ownname,siteadd,szip,scity,"
+            "parval,landval,improvval,"
+            "saledate,saledatetx,parusedesc,structyear,gisacres,recareano"
         ),
         "out": "nc_parcels/rdu_non_wake.geojson",
-        "enabled": False,   # enable after confirming field names in Step 1
+        "enabled": True,
     },
 ]

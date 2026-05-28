@@ -54,29 +54,39 @@ display(props.limit(10))
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## STEP 2 — Map the real columns
+# MAGIC ## STEP 2 — Column map (confirmed from NC OneMap field inspection)
 # MAGIC
-# MAGIC From the inspection above, fill in the actual NC OneMap field names.
-# MAGIC Common field names in the ICDE dataset (but VERIFY against inspection output):
-# MAGIC   FIPS, PARCELPK, REID, SITEADDR, SITECITY, SITEZIP,
-# MAGIC   SALEPRICE, SALEDATE, TOTVAL, LANDVAL, BLDGVAL,
-# MAGIC   HEATAREA, BLDGUSE, YEARBUILT, OWNER
+# MAGIC NC OneMap ICDE schema confirmed fields:
+# MAGIC   stcntyfips = 5-digit county FIPS (e.g. 37063)
+# MAGIC   parno      = parcel number (parcel ID)
+# MAGIC   parval     = total assessed value  ← this is assessed_value
+# MAGIC   landval    = land assessed value
+# MAGIC   improvval  = improvement (building) assessed value
+# MAGIC   saledate   = last recorded sale date
+# MAGIC   parusedesc = parcel use description
+# MAGIC   structyear = year built
+# MAGIC   siteadd    = site address
+# MAGIC   szip       = site ZIP code
+# MAGIC
+# MAGIC NOTE: There is NO sale price field in NC OneMap.
+# MAGIC sale_price will be NULL for all non-Wake records.
+# MAGIC These records contribute parcel_median_assessed to the gold layer only.
 
 # COMMAND ----------
 
 COLUMN_MAP = {
-    # our_name          : "Exact NC OneMap field name"
-    "parcel_id":          "REID",          # or PARCELPK — check inspection
-    "county_fips":        "FIPS",          # 5-digit: 37063 etc.
-    "sale_price":         "SALEPRICE",
-    "sale_date":          "SALEDATE",
-    "assessed_value":     "TOTVAL",
-    "land_assessed_value":"LANDVAL",
-    "heated_area":        "HEATAREA",
-    "bldg_use":           "BLDGUSE",
-    "year_built":         "YEARBUILT",
-    "address":            "SITEADDR",
-    "zip":                "SITEZIP",
+    # our_name            : "Exact NC OneMap field name"
+    "parcel_id":            "parno",
+    "county_fips":          "stcntyfips",   # 5-digit: 37063, 37135, etc.
+    "sale_price":           None,           # NOT available in NC OneMap
+    "sale_date":            "saledate",
+    "assessed_value":       "parval",       # total assessed value
+    "land_assessed_value":  "landval",
+    "heated_area":          "recareano",    # recorded area (sq ft or acres — verify)
+    "bldg_use":             "parusedesc",
+    "year_built":           "structyear",
+    "address":              "siteadd",
+    "zip":                  "szip",
 }
 
 # COMMAND ----------
