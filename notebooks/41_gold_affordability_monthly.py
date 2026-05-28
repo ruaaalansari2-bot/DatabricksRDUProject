@@ -45,7 +45,12 @@ WITH base AS (
           AND r.geography_scope = 'national'
     LEFT JOIN {SILVER}.demographics d
            ON d.county_fips = m.county_fips
-          AND d.acs_year    = YEAR(m.date_key)
+          AND d.acs_year    = (
+              SELECT MAX(d2.acs_year)
+              FROM {SILVER}.demographics d2
+              WHERE d2.county_fips = m.county_fips
+                AND d2.acs_year   <= YEAR(m.date_key)
+          )
     WHERE m.median_sale_price IS NOT NULL
       AND m.is_current = true
 ),
