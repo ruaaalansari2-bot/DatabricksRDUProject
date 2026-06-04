@@ -5,7 +5,7 @@
 # MAGIC **Layer:** Bronze (raw, minimally transformed)
 # MAGIC **Source:** FHFA HPI county file, landed in the volume by the GitHub
 # MAGIC Actions acquisition layer (acquisition/acquire.py + upload.py).
-# MAGIC **Scope:** Raleigh-Durham-Cary CSA, filtered after read.
+# MAGIC **Scope:** Syracuse, NY Metropolitan Statistical Area, filtered after read.
 # MAGIC
 # MAGIC ### Why batch overwrite (not Auto Loader)
 # MAGIC FHFA publishes one full-history file that is replaced each quarter.
@@ -19,8 +19,10 @@ CATALOG = "workspace"
 BRONZE_SCHEMA = "bronze"
 SOURCE_FILE = "/Volumes/workspace/landing/raw/fhfa/hpi_county.csv"
 
-RDU_COUNTY_FIPS = ["37183", "37063", "37135", "37101",
-                   "37037", "37069", "37077", "37145"]
+# Syracuse MSA County FIPS codes (New York state code 36 + county codes)
+SYRACUSE_COUNTY_FIPS = ["36067",  # Onondaga County (Syracuse city)
+                        "36053",  # Madison County
+                        "36075"]  # Oswego County
 
 # COMMAND ----------
 
@@ -47,10 +49,10 @@ bronze = (raw
 
 # COMMAND ----------
 
-# Validation — RDU counties only.
+# Validation — Syracuse MSA counties only.
 display(
     spark.table(f"{CATALOG}.{BRONZE_SCHEMA}.fhfa_hpi_county")
-    .filter(F.col("fips_code").cast("string").isin(RDU_COUNTY_FIPS))
+    .filter(F.col("fips_code").cast("string").isin(SYRACUSE_COUNTY_FIPS))
     .select("fips_code", "year", "hpi", "annual_change_pct", "_ingested_at")
     .orderBy("fips_code", "year")
 )

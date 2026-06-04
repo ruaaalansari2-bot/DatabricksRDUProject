@@ -22,18 +22,16 @@ CATALOG       = "workspace"
 SILVER_SCHEMA = "silver"
 BRONZE_SCHEMA = "bronze"
 
-RDU_FIPS = ["37183","37063","37135","37101","37037","37069","37077","37145"]
+# Syracuse MSA County FIPS codes (New York state code 36 + county codes)
+SYRACUSE_FIPS = ["36067",  # Onondaga County (Syracuse city)
+                 "36053",  # Madison County
+                 "36075"]  # Oswego County
 
 # county_fips crosswalk: Redfin REGION string → 5-digit FIPS
 REDFIN_REGION_MAP = {
-    "Wake County, NC":      "37183",
-    "Durham County, NC":    "37063",
-    "Orange County, NC":    "37135",
-    "Johnston County, NC":  "37101",
-    "Chatham County, NC":   "37037",
-    "Franklin County, NC":  "37069",
-    "Granville County, NC": "37077",
-    "Person County, NC":    "37145",
+    "Onondaga County, NY": "36067",
+    "Madison County, NY":  "36053",
+    "Oswego County, NY":   "36075",
 }
 
 # COMMAND ----------
@@ -44,7 +42,7 @@ spark.sql(f"CREATE SCHEMA IF NOT EXISTS {CATALOG}.{SILVER_SCHEMA}")
 # Annual index → expand to one row per month (forward-fill within each year).
 # date_key = first of each month in that year.
 fhfa_raw = (spark.table(f"{CATALOG}.{BRONZE_SCHEMA}.fhfa_hpi_county")
-            .filter(F.lpad(F.col("fips_code").cast("string"), 5, "0").isin(RDU_FIPS))
+            .filter(F.lpad(F.col("fips_code").cast("string"), 5, "0").isin(SYRACUSE_FIPS))
             .select(
                 F.lpad(F.col("fips_code").cast("string"), 5, "0").alias("county_fips"),
                 F.col("year").cast("int"),
@@ -71,7 +69,7 @@ region_map_expr = F.create_map(
 )
 
 redfin = (spark.table(f"{CATALOG}.{BRONZE_SCHEMA}.redfin_county_tracker")
-          .filter(F.col("STATE_CODE") == "NC")
+          .filter(F.col("STATE_CODE") == "NY")
           .filter(F.col("PROPERTY_TYPE") == "All Residential")
           .withColumn("county_fips", region_map_expr[F.col("REGION")])
           .filter(F.col("county_fips").isNotNull())
@@ -87,9 +85,9 @@ redfin = (spark.table(f"{CATALOG}.{BRONZE_SCHEMA}.redfin_county_tracker")
                   "hpi_index", "hpi_annual_change_pct"))
 
 # ── 3. Realtor.com ────────────────────────────────────────────────────────────
-# Native monthly. Convert YYYYMM int → date_key. Filter to RDU FIPS.
+# Native monthly. Convert YYYYMM int → date_key. Filter to Syracuse FIPS.
 realtor = (spark.table(f"{CATALOG}.{BRONZE_SCHEMA}.realtor_inventory_county")
-           .filter(F.lpad(F.col("county_fips").cast("string"), 5, "0").isin(RDU_FIPS))
+           .filter(F.lpad(F.col("county_fips").cast("string"), 5, "0").isin(SYRACUSE_FIPS))
            .withColumn("county_fips",
                        F.lpad(F.col("county_fips").cast("string"), 5, "0"))
            .withColumn("date_key",
@@ -123,6 +121,6 @@ home_prices = (fhfa.union(redfin).union(realtor)
 
 display(
     spark.table(f"{CATALOG}.{SILVER_SCHEMA}.home_prices")
-    .filter(F.col("county_fips") == "37183")
+    .filter(F.col("county_fips") == "36067")  # Onondaga County (Syracuse)
     .orderBy("source", F.col("date_key").desc())
     .limit(15))
