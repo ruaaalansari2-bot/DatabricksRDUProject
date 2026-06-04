@@ -1,9 +1,9 @@
-# Raleigh-Durham Market Intelligence Lakehouse
+# Syracuse Market Intelligence Lakehouse
 
 A medallion-architecture data lakehouse on Databricks that turns public
-housing data into market intelligence for the **Raleigh-Durham-Cary CSA**.
-Built to be **RDU-focused now, NC-scalable later** — expanding to all 100
-North Carolina counties changes one configuration value, not the schema.
+housing data into market intelligence for the **Syracuse MSA**.
+Built to be **Syracuse-focused now, NY-scalable later** — expanding to all 62
+New York counties changes one configuration value, not the schema.
 
 > Built as a portfolio project to demonstrate end-to-end data engineering on
 > Databricks: multi-source ingestion, medallion layering (bronze/silver/gold),
@@ -11,32 +11,28 @@ North Carolina counties changes one configuration value, not the schema.
 
 ---
 
-## Why Raleigh-Durham
+## Why Syracuse
 
-The Triangle is one of the clearest recent case studies in US housing:
-rapid tech-driven in-migration, a supply squeeze, sharp appreciation, and a
-fast slide in affordability. The market also splits cleanly into two MSAs
-(Raleigh-Cary and Durham-Chapel Hill) and into very different sub-markets
-(urban Wake vs. exurban Johnston), which makes the analytics genuinely
-interesting rather than a single flat trend line.
+Syracuse represents a compelling case study in the post-industrial Northeast:
+a legacy manufacturing hub experiencing demographic transitions, selective
+tech-driven revitalization, and distinct sub-market dynamics across urban and
+rural areas. The market splits across four counties with varied economic profiles
+(Onondaga's urban core vs. Oswego's rural character), making the analytics
+genuinely interesting rather than a single flat trend line.
 
 ## Geographic scope
 
-Raleigh-Durham-Cary Combined Statistical Area — 8 counties:
+Syracuse Metropolitan Statistical Area — 4 counties:
 
 | County | FIPS | MSA | Seat |
 |---|---|---|---|
-| Wake | 37183 | Raleigh-Cary | Raleigh |
-| Durham | 37063 | Durham-Chapel Hill | Durham |
-| Orange | 37135 | Durham-Chapel Hill | Hillsborough |
-| Johnston | 37101 | Raleigh-Cary | Smithfield |
-| Chatham | 37037 | Durham-Chapel Hill | Pittsboro |
-| Franklin | 37069 | Raleigh-Cary | Louisburg |
-| Granville | 37077 | Durham-Chapel Hill | Oxford |
-| Person | 37145 | Durham-Chapel Hill | Roxboro |
+| Onondaga | 36067 | Syracuse | Syracuse |
+| Madison | 36053 | Syracuse | Wampsville |
+| Oswego | 36069 | Syracuse | Oswego |
+| Cayuga | 36075 | Syracuse | Auburn |
 
-Scope is controlled in `utils/geography_config.py`. Expanding to all of NC
-means populating `NC_ALL_COUNTIES` and repointing `ACTIVE_SCOPE`.
+Scope is controlled in `utils/geography_config.py`. Expanding to all of NY
+means populating `NY_ALL_COUNTIES` and repointing `ACTIVE_SCOPE`.
 
 ## Architecture
 
@@ -48,7 +44,7 @@ means populating `NC_ALL_COUNTIES` and repointing `ACTIVE_SCOPE`.
  FRED rates         fred_mortgage_rates     market_metrics            affordability_stress
  Census ACS         census_acs              geography_dim  (SCD)      inventory_dynamics
  HUD ZIP crosswalk  hud_zip_crosswalk       economic_indicators       zip_hotspots
- Wake/Durham deeds  county_assessor_sales   demographics_dim          assessor_vs_market   <- showpiece
+ Onondaga/Madison deeds  county_assessor_sales   demographics_dim          assessor_vs_market   <- showpiece
 ```
 
 Orchestrated as a monthly Databricks Workflow; Auto Loader handles the
@@ -88,7 +84,7 @@ methodology — no algorithmic home valuations are used anywhere.**
 - FRED — 30-yr mortgage rate, permits, housing starts
 - US Census ACS 5-Year — income, demographics, housing characteristics
 - HUD USPS ZIP crosswalk — ZIP-to-county mapping
-- Wake & Durham County tax records — parcel-level recorded sales (ground truth)
+- Onondaga & Madison County tax records — parcel-level recorded sales (ground truth)
 
 ### Why no Zillow ZHVI
 ZHVI is a model-derived estimate of what homes are *worth*, not a record of
@@ -99,7 +95,7 @@ transaction data, so every price figure traces back to a real sale.
 ## Repository layout
 
 ```
-rdu-lakehouse/
+syracuse-lakehouse/
 ├── acquisition/    fetch (acquire.py) + upload (upload.py) + sources registry
 ├── .github/        GitHub Actions weekly acquisition workflow (CI automation)
 ├── notebooks/      bronze (0x), silver (1x), gold (2x), metric view (3x)
@@ -112,11 +108,11 @@ rdu-lakehouse/
 
 ## Build status
 
-- [x] Project scope + NC-scalable geography config
+- [x] Project scope + NY-scalable geography config
 - [x] Affordability math + unit tests (6/6 passing)
 - [x] Acquisition layer: sources registry + fetch/upload + GitHub Actions CI
 - [x] Bronze: FHFA + Redfin via Auto Loader from volume
-- [ ] Bronze: FRED, Census, Wake sales, Durham parcels (registry ready)
+- [ ] Bronze: FRED, Census, Onondaga sales, Madison parcels (registry ready)
 - [ ] Silver: conformed geography dimension + price/metric cleaning
 - [ ] Gold: market health, price trends, affordability, assessor-vs-market
 - [ ] Orchestration: monthly Databricks Workflow
